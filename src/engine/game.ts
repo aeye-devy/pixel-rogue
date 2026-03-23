@@ -137,7 +137,7 @@ function resolveMonsterCell(state: GameState, pos: Position, monster: Monster): 
     state.events.push({ type: 'move', from: { ...state.hero.pos }, to: { ...pos } })
     state.hero.pos = pos
   } else {
-    const monsterDmg = Math.max(0, monster.atk - state.hero.def)
+    const monsterDmg = Math.max(1, monster.atk - state.hero.def)
     state.hero.hp -= monsterDmg
     state.events.push({
       type: 'hero_hurt',
@@ -226,7 +226,8 @@ function advanceFloor(ctx: MoveContext): MoveContext {
   const { grid, heroPos, entityCount } = generateFloor(state.floor, rng)
   state.grid = grid
   state.hero.pos = heroPos
-  const healAmount = Math.min(3, state.hero.maxHp - state.hero.hp)
+  const FLOOR_HEAL = 2
+  const healAmount = Math.min(FLOOR_HEAL, state.hero.maxHp - state.hero.hp)
   state.hero.hp += healAmount
   return { state, rng, floorEntityCount: entityCount, clearedCount: 0 }
 }

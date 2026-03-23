@@ -31,18 +31,50 @@ describe('generateFloor', () => {
     expect(kinds.has('monster')).toBe(true)
     expect(kinds.has('coin')).toBe(true)
   })
-  it('높은 층에서 무기와 방패 등장', () => {
-    const rng = createRNG(42)
-    const { grid } = generateFloor(5, rng)
-    const kinds = new Set<string>()
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
-        const cell = grid[y]?.[x]
-        if (cell != null) kinds.add(cell.kind)
+  it('높은 층에서 무기와 방패 등장 가능', () => {
+    let hasWeapon = false
+    let hasShield = false
+    for (let seed = 1; seed <= 30; seed++) {
+      const rng = createRNG(seed)
+      const { grid } = generateFloor(6, rng)
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          const cell = grid[y]?.[x]
+          if (cell?.kind === 'weapon') hasWeapon = true
+          if (cell?.kind === 'shield') hasShield = true
+        }
       }
     }
-    expect(kinds.has('weapon')).toBe(true)
-    expect(kinds.has('shield')).toBe(true)
+    expect(hasWeapon).toBe(true)
+    expect(hasShield).toBe(true)
+  })
+  it('1층에서 무기와 방패 미등장', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const rng = createRNG(seed)
+      const { grid } = generateFloor(1, rng)
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          const cell = grid[y]?.[x]
+          expect(cell?.kind).not.toBe('weapon')
+          expect(cell?.kind).not.toBe('shield')
+        }
+      }
+    }
+  })
+  it('무기 드롭은 확률적 (60%)', () => {
+    let weaponCount = 0
+    const trials = 100
+    for (let seed = 1; seed <= trials; seed++) {
+      const rng = createRNG(seed)
+      const { grid } = generateFloor(5, rng)
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          if (grid[y]?.[x]?.kind === 'weapon') weaponCount++
+        }
+      }
+    }
+    expect(weaponCount).toBeGreaterThan(30)
+    expect(weaponCount).toBeLessThan(85)
   })
   it('같은 시드에서 동일한 층 생성', () => {
     const a = generateFloor(3, createRNG(100))

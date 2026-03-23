@@ -136,7 +136,17 @@ describe('moveHero — 전투', () => {
     const state = makeState({ hero, grid })
     const rng = createRNG(1)
     moveHero({ state, rng, floorEntityCount: 1, clearedCount: 0 }, 'right')
-    // Monster deals 3 - 2 = 1 damage
+    // Monster deals max(1, 3 - 2) = 1 damage
+    expect(state.hero.hp).toBe(9)
+  })
+  it('DEF가 높아도 최소 1 데미지 보장', () => {
+    const monster: Monster = { kind: 'monster', name: 'Rat', hp: 5, atk: 1 }
+    const hero = makeHero({ pos: { x: 0, y: 0 }, hp: 10, atk: 1, def: 5 })
+    const grid = makeGrid([{ pos: { x: 1, y: 0 }, cell: monster }])
+    const state = makeState({ hero, grid })
+    const rng = createRNG(1)
+    moveHero({ state, rng, floorEntityCount: 1, clearedCount: 0 }, 'right')
+    // Monster deals max(1, 1 - 5) = 1 minimum damage
     expect(state.hero.hp).toBe(9)
   })
   it('HP가 0이 되면 game_over', () => {
