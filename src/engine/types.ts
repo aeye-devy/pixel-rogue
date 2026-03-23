@@ -81,7 +81,7 @@ export type GameEvent =
 
 // -- Game State --
 
-export type GameStatus = 'playing' | 'floor_clear' | 'game_over'
+export type GameStatus = 'title' | 'playing' | 'floor_clear' | 'game_over'
 
 export interface GameState {
   grid: Cell[][]

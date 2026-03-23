@@ -5,6 +5,8 @@ import { createAnimationManager } from './renderer/animations.js'
 import { createInputHandler } from './renderer/input.js'
 import { createSoundEngine } from './audio/soundEngine.js'
 import { PALETTE } from './renderer/sprites.js'
+import { loadHighScore, saveHighScore } from './storage.js'
+import type { HighScoreData } from './storage.js'
 
 // -- Bootstrap --
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement | null
@@ -17,6 +19,8 @@ const anims = createAnimationManager()
 const sound = createSoundEngine()
 
 let game = createGameController()
+let screen: 'title' | 'playing' | 'game_over' = 'title'
+let highScoreData: HighScoreData = loadHighScore()
 
 // -- Animation event mapping --
 function processEvents(events: GameEvent[]): void {
@@ -65,10 +69,27 @@ function processEvents(events: GameEvent[]): void {
         sound.play('floorClear')
         break
       case 'game_over':
+        highScoreData = saveHighScore(ev.score, ev.floor)
         sound.play('gameOver')
         break
     }
   }
+}
+
+// -- Screen transitions --
+function startGame(): void {
+  game = createGameController()
+  screen = 'playing'
+  inputLocked = false
+  sound.unlock()
+  sound.play('menuSelect')
+}
+
+function restartGame(): void {
+  game = createGameController()
+  screen = 'playing'
+  inputLocked = false
+  sound.play('menuSelect')
 }
 
 // -- Input --
@@ -76,38 +97,66 @@ let inputLocked = false
 
 function handleDirection(direction: Parameters<typeof game.move>[0]): void {
   if (inputLocked) return
-  sound.unlock()
-  const state = game.getState()
-  if (state.status === 'game_over') {
+  if (screen === 'title') {
+    startGame()
+    return
+  }
+  if (screen === 'game_over') {
     restartGame()
     return
   }
+  if (screen !== 'playing') return
+  sound.unlock()
+  const state = game.getState()
   if (state.status !== 'playing') return
   if (anims.isAnimating()) return
   const newState = game.move(direction)
   processEvents(newState.events)
   if (newState.status === 'game_over') {
+    screen = 'game_over'
     inputLocked = true
     setTimeout(() => { inputLocked = false }, 800)
   }
 }
 
-function restartGame(): void {
-  game = createGameController()
-  inputLocked = false
-}
-
 const input = createInputHandler(canvas, handleDirection)
 
-// -- Restart on any key/tap during game over --
-function onRestartKey(e: KeyboardEvent): void {
-  const state = game.getState()
-  if (state.status === 'game_over' && !inputLocked) {
+// -- Start/restart on any key/tap --
+function onKey(e: KeyboardEvent): void {
+  if (inputLocked) return
+  if (screen === 'title') {
+    e.preventDefault()
+    startGame()
+    return
+  }
+  if (screen === 'game_over') {
     e.preventDefault()
     restartGame()
   }
 }
-document.addEventListener('keydown', onRestartKey)
+document.addEventListener('keydown', onKey)
+
+// -- Sound toggle on tap --
+canvas.addEventListener('click', (e: MouseEvent) => {
+  if (screen !== 'playing') return
+  const rect = canvas.getBoundingClientRect()
+  const cssX = e.clientX - rect.left
+  const cssY = e.clientY - rect.top
+  if (renderer.hitTestSoundToggle(cssX, cssY)) {
+    sound.toggleMute()
+    e.stopPropagation()
+  }
+})
+
+// -- Title screen tap to start --
+canvas.addEventListener('click', () => {
+  if (inputLocked) return
+  if (screen === 'title') {
+    startGame()
+  } else if (screen === 'game_over') {
+    restartGame()
+  }
+})
 
 // -- Game loop --
 let lastTime = 0
@@ -115,11 +164,19 @@ let lastTime = 0
 function frame(timestamp: number): void {
   const dt = lastTime === 0 ? 0 : (timestamp - lastTime) / 1000
   lastTime = timestamp
-  anims.update(dt)
-  const state = game.getState()
-  renderer.render(state, anims)
-  if (state.status === 'game_over' && !anims.isAnimating()) {
-    renderer.renderGameOver(state)
+  if (screen === 'title') {
+    const time = timestamp / 1000
+    renderer.renderTitle(time)
+  } else {
+    anims.update(dt)
+    const state = game.getState()
+    renderer.render(state, anims)
+    if (screen === 'playing') {
+      renderer.renderSoundToggle(sound.isMuted())
+    }
+    if (screen === 'game_over' && !anims.isAnimating()) {
+      renderer.renderGameOver(state, highScoreData)
+    }
   }
   requestAnimationFrame(frame)
 }
