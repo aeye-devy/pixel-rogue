@@ -14,6 +14,16 @@ export interface RendererConfig {
   ctx: CanvasRenderingContext2D
 }
 
+export type AdPromptKind = 'revive' | 'power_up'
+
+export interface AdPromptButton {
+  label: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface Renderer {
   /** Resize canvas to fit viewport. Call on init and on resize. */
   resize(): void
@@ -25,12 +35,16 @@ export interface Renderer {
   renderTitle(time: number): void
   /** Render sound toggle icon. */
   renderSoundToggle(muted: boolean): void
+  /** Render ad prompt overlay. Returns button bounds for hit testing. */
+  renderAdPrompt(kind: AdPromptKind): { watchBtn: AdPromptButton; skipBtn: AdPromptButton }
   /** Get current canvas size */
   getSize(): number
   /** Get cell size in pixels */
   getCellSize(): number
   /** Check if a pixel coordinate hits the sound toggle button. Returns true if hit. */
   hitTestSoundToggle(cssX: number, cssY: number): boolean
+  /** Get the device pixel ratio */
+  getDpr(): number
 }
 
 export function createRenderer(config: RendererConfig): Renderer {
@@ -349,11 +363,63 @@ export function createRenderer(config: RendererConfig): Renderer {
       canvasY <= soundBtnY + soundBtnSize + hitPadding
     )
   }
+  function renderAdPrompt(kind: AdPromptKind): { watchBtn: AdPromptButton; skipBtn: AdPromptButton } {
+    // Dim overlay
+    ctx.fillStyle = PALETTE.gameOverBg
+    ctx.fillRect(0, 0, size, size)
+    const centerY = Math.floor(size / 2)
+    const titleSize = Math.floor(size * 0.06)
+    const textSize = Math.floor(size * 0.035)
+    const lineH = Math.floor(textSize * 2.2)
+    // Title
+    ctx.fillStyle = kind === 'revive' ? PALETTE.hpBar : PALETTE.exit
+    ctx.font = `bold ${titleSize}px monospace`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const title = kind === 'revive' ? 'CONTINUE?' : 'POWER UP!'
+    ctx.fillText(title, size / 2, centerY - lineH * 2)
+    // Description
+    ctx.fillStyle = PALETTE.text
+    ctx.font = `${textSize}px monospace`
+    if (kind === 'revive') {
+      ctx.fillText('Watch an ad to revive', size / 2, centerY - lineH * 0.8)
+      ctx.fillText('with 50% HP', size / 2, centerY - lineH * 0.1)
+    } else {
+      ctx.fillText('Watch an ad for', size / 2, centerY - lineH * 0.8)
+      ctx.fillText('ATK +3 or Full Heal', size / 2, centerY - lineH * 0.1)
+    }
+    // Watch Ad button
+    const btnW = Math.floor(size * 0.5)
+    const btnH = Math.floor(size * 0.08)
+    const btnX = Math.floor((size - btnW) / 2)
+    const watchBtnY = centerY + lineH
+    ctx.fillStyle = kind === 'revive' ? PALETTE.exit : PALETTE.hero
+    ctx.fillRect(btnX, watchBtnY, btnW, btnH)
+    ctx.fillStyle = PALETTE.black
+    ctx.font = `bold ${Math.floor(btnH * 0.5)}px monospace`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('WATCH AD', size / 2, watchBtnY + Math.floor(btnH / 2))
+    // No Thanks button
+    const skipBtnY = watchBtnY + btnH + Math.floor(lineH * 0.6)
+    ctx.fillStyle = PALETTE.gridLine
+    ctx.fillRect(btnX, skipBtnY, btnW, btnH)
+    ctx.fillStyle = PALETTE.textDim
+    ctx.font = `bold ${Math.floor(btnH * 0.45)}px monospace`
+    ctx.fillText('NO THANKS', size / 2, skipBtnY + Math.floor(btnH / 2))
+    return {
+      watchBtn: { label: 'WATCH AD', x: btnX, y: watchBtnY, w: btnW, h: btnH },
+      skipBtn: { label: 'NO THANKS', x: btnX, y: skipBtnY, w: btnW, h: btnH },
+    }
+  }
   function getSize(): number {
     return size
   }
   function getCellSize(): number {
     return cellSize
   }
-  return { resize, render, renderGameOver, renderTitle, renderSoundToggle, getSize, getCellSize, hitTestSoundToggle }
+  function getDpr(): number {
+    return dpr
+  }
+  return { resize, render, renderGameOver, renderTitle, renderSoundToggle, renderAdPrompt, getSize, getCellSize, hitTestSoundToggle, getDpr }
 }

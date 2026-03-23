@@ -239,15 +239,26 @@ export function calculateScore(state: GameState): number {
 
 // -- Public API: high-level game controller --
 
+export type PowerUpKind = 'atk_boost' | 'full_heal'
+
 export interface GameController {
   getState(): GameState
   move(direction: Direction): GameState
+  /** Revive hero at 50% HP. Returns false if already used this run. */
+  revive(): boolean
+  /** Apply a power-up reward. */
+  applyPowerUp(kind: PowerUpKind): void
+  /** Whether revive has been used this run. */
+  hasRevived(): boolean
 }
+
+const POWER_UP_ATK_BOOST = 3
 
 export function createGameController(seed?: number): GameController {
   const { state, rng } = createGame(seed)
   const { entityCount } = countFloorEntities(state)
   let ctx: MoveContext = { state, rng, floorEntityCount: entityCount, clearedCount: 0 }
+  let revived = false
   function getState(): GameState {
     return ctx.state
   }
@@ -255,7 +266,28 @@ export function createGameController(seed?: number): GameController {
     ctx = moveHero(ctx, direction)
     return ctx.state
   }
-  return { getState, move }
+  function revive(): boolean {
+    if (revived) return false
+    if (ctx.state.status !== 'game_over') return false
+    revived = true
+    const hero = ctx.state.hero
+    hero.hp = Math.max(1, Math.ceil(hero.maxHp * 0.5))
+    ctx.state.status = 'playing'
+    ctx.state.events = []
+    return true
+  }
+  function applyPowerUp(kind: PowerUpKind): void {
+    if (ctx.state.status !== 'playing') return
+    if (kind === 'atk_boost') {
+      ctx.state.hero.atk += POWER_UP_ATK_BOOST
+    } else {
+      ctx.state.hero.hp = ctx.state.hero.maxHp
+    }
+  }
+  function hasRevived(): boolean {
+    return revived
+  }
+  return { getState, move, revive, applyPowerUp, hasRevived }
 }
 
 function countFloorEntities(state: GameState): { entityCount: number } {

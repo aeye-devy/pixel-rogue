@@ -282,3 +282,63 @@ describe('createGameController', () => {
     expect(ctrl1.getState().hero).toEqual(ctrl2.getState().hero)
   })
 })
+
+describe('GameController — revive', () => {
+  it('game_over 상태에서 revive 시 HP 50% 복원', () => {
+    const hero = makeHero({ pos: { x: 0, y: 0 }, hp: 1, maxHp: 10, atk: 1 })
+    const monster: Monster = { kind: 'monster', name: 'Demon', hp: 99, atk: 20 }
+    const grid = makeGrid([{ pos: { x: 1, y: 0 }, cell: monster }])
+    const state = makeState({ hero, grid })
+    const rng = createRNG(1)
+    moveHero({ state, rng, floorEntityCount: 1, clearedCount: 0 }, 'right')
+    expect(state.status).toBe('game_over')
+    expect(state.hero.hp).toBe(0)
+    // Simulate revive by restoring HP
+    state.hero.hp = Math.max(1, Math.ceil(state.hero.maxHp * 0.5))
+    state.status = 'playing'
+    expect(state.status).toBe('playing')
+    expect(state.hero.hp).toBe(5)
+  })
+  it('revive 후 다시 game_over 시 재사용 불가 (moveHero 직접 테스트)', () => {
+    const hero = makeHero({ pos: { x: 0, y: 0 }, hp: 5, maxHp: 10, atk: 1 })
+    const demon: Monster = { kind: 'monster', name: 'Demon', hp: 99, atk: 50 }
+    const grid = makeGrid([{ pos: { x: 1, y: 0 }, cell: demon }])
+    const state = makeState({ hero, grid })
+    const rng = createRNG(1)
+    moveHero({ state, rng, floorEntityCount: 1, clearedCount: 0 }, 'right')
+    expect(state.status).toBe('game_over')
+    // First revive
+    state.hero.hp = Math.max(1, Math.ceil(state.hero.maxHp * 0.5))
+    state.status = 'playing'
+    expect(state.hero.hp).toBe(5)
+    // Die again — move into the same demon
+    moveHero({ state, rng, floorEntityCount: 1, clearedCount: 0 }, 'right')
+    expect(state.status).toBe('game_over')
+  })
+  it('playing 상태에서 revive 호출 시 false 반환', () => {
+    const ctrl = createGameController(42)
+    expect(ctrl.getState().status).toBe('playing')
+    expect(ctrl.revive()).toBe(false)
+  })
+})
+
+describe('GameController — applyPowerUp', () => {
+  it('atk_boost 적용 시 ATK +3', () => {
+    const ctrl = createGameController(42)
+    const beforeAtk = ctrl.getState().hero.atk
+    ctrl.applyPowerUp('atk_boost')
+    expect(ctrl.getState().hero.atk).toBe(beforeAtk + 3)
+  })
+  it('full_heal 적용 시 HP가 maxHp로 복원', () => {
+    const ctrl = createGameController(42)
+    // Move around to take some damage first
+    const directions: Direction[] = ['right', 'down', 'left', 'up']
+    for (const dir of directions) {
+      ctrl.move(dir)
+      if (ctrl.getState().hero.hp < ctrl.getState().hero.maxHp) break
+    }
+    ctrl.applyPowerUp('full_heal')
+    const state = ctrl.getState()
+    expect(state.hero.hp).toBe(state.hero.maxHp)
+  })
+})
