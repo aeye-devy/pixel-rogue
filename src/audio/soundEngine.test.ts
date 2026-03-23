@@ -64,6 +64,7 @@ function createMockLocalStorage() {
   return {
     getItem: vi.fn((key: string) => storage[key] ?? null),
     setItem: vi.fn((key: string, value: string) => { storage[key] = value }),
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     removeItem: vi.fn((key: string) => { delete storage[key] }),
     clear: vi.fn(() => { storage = {} }),
     get length() { return Object.keys(storage).length },

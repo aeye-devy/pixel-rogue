@@ -70,7 +70,8 @@ export interface MoveContext {
 
 export function moveHero(ctx: MoveContext, direction: Direction): MoveContext {
   const { state, rng } = ctx
-  let { floorEntityCount, clearedCount } = ctx
+  const { floorEntityCount } = ctx
+  let { clearedCount } = ctx
   if (state.status !== 'playing') return ctx
   state.events = []
   const delta = DIRECTION_DELTAS[direction]
