@@ -45,6 +45,7 @@ export function createRenderer(config: RendererConfig): Renderer {
     gridSize = size - hudHeight - GRID_PADDING * 2
     cellSize = Math.floor(gridSize / GRID_SIZE)
     gridOffsetY = hudHeight
+    ctx.imageSmoothingEnabled = false
   }
   function gridX(col: number): number {
     const totalGridWidth = cellSize * GRID_SIZE
@@ -68,6 +69,13 @@ export function createRenderer(config: RendererConfig): Renderer {
         const py = gridY(y)
         ctx.fillStyle = (x + y) % 2 === 0 ? PALETTE.floor : PALETTE.floorAlt
         ctx.fillRect(px, py, cellSize, cellSize)
+        // Stone texture: deterministic scattered detail pixels
+        const dp = Math.max(1, Math.floor(cellSize / 12))
+        ctx.fillStyle = PALETTE.gridLine
+        const h = x * 7 + y * 13
+        const scale = cellSize / 12
+        ctx.fillRect(px + Math.floor(((h * 3 + 5) % 10 + 1) * scale), py + Math.floor(((h * 7 + 3) % 10 + 1) * scale), dp, dp)
+        ctx.fillRect(px + Math.floor(((h * 11 + 2) % 10 + 1) * scale), py + Math.floor(((h * 5 + 8) % 10 + 1) * scale), dp, dp)
         // Cell border
         ctx.strokeStyle = PALETTE.gridLine
         ctx.lineWidth = 1
