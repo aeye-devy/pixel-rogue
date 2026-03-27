@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   root: '.',
-  base: '/pixel-rogue/',
+  base: '/',
   build: {
     outDir: 'dist',
     target: 'es2022',
