@@ -158,6 +158,20 @@ export function createRenderer(config: RendererConfig): Renderer {
     ctx.font = `${smallFontSize}px monospace`
     ctx.fillStyle = PALETTE.textDim
     ctx.fillText(`F${state.floor}`, size - pad, statsY)
+    // Wave timer
+    const timerSecs = Math.ceil(state.waveTimer)
+    const timerStr = `${timerSecs}s`
+    const timerColor = timerSecs <= 5 ? PALETTE.hpBar : timerSecs <= 15 ? PALETTE.coin : PALETTE.text
+    ctx.font = `bold ${fontSize}px monospace`
+    ctx.textAlign = 'center'
+    ctx.fillStyle = timerColor
+    ctx.fillText(timerStr, size / 2, barY + Math.floor(barH / 2))
+    // Boss wave label
+    if (state.isBossWave) {
+      ctx.font = `bold ${Math.floor(smallFontSize * 0.85)}px monospace`
+      ctx.fillStyle = PALETTE.hpBar
+      ctx.fillText('⚠ BOSS', size / 2, statsY)
+    }
     // Separator
     ctx.strokeStyle = PALETTE.gridLine
     ctx.lineWidth = 1
@@ -229,7 +243,14 @@ export function createRenderer(config: RendererConfig): Renderer {
     ctx.font = `bold ${titleSize}px monospace`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText('GAME OVER', size / 2, centerY - lineH * 3)
+    const isBossDeath = state.gameOverCause === 'boss_survived'
+    if (isBossDeath) {
+      ctx.fillText('BOSS SURVIVED', size / 2, centerY - lineH * 3.6)
+      ctx.font = `bold ${Math.floor(titleSize * 0.7)}px monospace`
+      ctx.fillText('GAME OVER', size / 2, centerY - lineH * 2.7)
+    } else {
+      ctx.fillText('GAME OVER', size / 2, centerY - lineH * 3)
+    }
     // This run stats
     ctx.fillStyle = PALETTE.text
     ctx.font = `${textSize}px monospace`

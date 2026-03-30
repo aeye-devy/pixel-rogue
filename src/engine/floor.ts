@@ -1,6 +1,27 @@
 import type { Cell, Entity, Monster, Position, RNG } from './types.js'
 import { GRID_SIZE } from './types.js'
 
+// -- Boss wave config --
+
+export const BOSS_WAVE_INTERVAL = 10
+
+export function isBossFloor(floor: number): boolean {
+  return floor % BOSS_WAVE_INTERVAL === 0
+}
+
+function createBossMonster(floor: number): Monster {
+  const tier = Math.min(3, Math.floor(floor / BOSS_WAVE_INTERVAL) - 1)
+  const baseHp = [15, 25, 40, 60][tier] ?? 15
+  const baseAtk = [4, 6, 8, 12][tier] ?? 4
+  return {
+    kind: 'monster',
+    name: 'BOSS',
+    hp: baseHp,
+    atk: baseAtk,
+    isBoss: true,
+  }
+}
+
 // -- Monster templates by difficulty tier --
 
 interface MonsterTemplate {
@@ -123,8 +144,16 @@ export function generateFloor(floor: number, rng: RNG): GeneratedFloor {
     idx++
     entityCount++
   }
-  for (let i = 0; i < config.monsters; i++) {
-    place(pickMonster(floor, rng))
+  if (isBossFloor(floor)) {
+    place(createBossMonster(floor))
+    // Place 2 regular helper monsters alongside the boss
+    for (let i = 0; i < 2; i++) {
+      place(pickMonster(floor, rng))
+    }
+  } else {
+    for (let i = 0; i < config.monsters; i++) {
+      place(pickMonster(floor, rng))
+    }
   }
   for (let i = 0; i < config.potions; i++) {
     const healAmount = 2 + Math.floor(floor / 5)

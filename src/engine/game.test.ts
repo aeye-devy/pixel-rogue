@@ -3,6 +3,7 @@ import { createGame, createGameController, moveHero, calculateScore } from './ga
 import { createRNG } from './rng.js'
 import type { Cell, Direction, GameState, Monster, Position } from './types.js'
 import { GRID_SIZE } from './types.js'
+import { isBossFloor } from './floor.js'
 
 // -- Helpers --
 
@@ -22,6 +23,9 @@ function makeState(overrides: Partial<GameState> & { hero: GameState['hero']; gr
     score: 0,
     status: 'playing',
     events: [],
+    waveTimer: 30,
+    isBossWave: false,
+    gameOverCause: 'normal',
     ...overrides,
   }
 }
@@ -329,6 +333,88 @@ describe('GameController — revive', () => {
     const ctrl = createGameController(42)
     expect(ctrl.getState().status).toBe('playing')
     expect(ctrl.revive()).toBe(false)
+  })
+})
+
+describe('tickTimer — 보스 웨이브', () => {
+  it('보스가 살아있는 상태에서 타이머 만료 시 즉시 game_over', () => {
+    const ctrl = createGameController(42)
+    // 보스 웨이브를 강제 설정
+    const state = ctrl.getState()
+    state.isBossWave = true
+    state.waveTimer = 0.1
+    // Place a boss on the grid
+    state.grid[0]![0] = { kind: 'monster', name: 'BOSS', hp: 50, atk: 10, isBoss: true }
+    state.hero.pos = { x: 3, y: 3 }
+    const result = ctrl.tickTimer(0.5)
+    expect(result.status).toBe('game_over')
+    expect(result.gameOverCause).toBe('boss_survived')
+    expect(result.events.some(e => e.type === 'game_over' && e.cause === 'boss_survived')).toBe(true)
+  })
+  it('보스가 이미 처치된 경우 타이머 만료 시 다음 층으로', () => {
+    const ctrl = createGameController(42)
+    const state = ctrl.getState()
+    state.isBossWave = true
+    state.waveTimer = 0.1
+    // No boss alive — grid clear
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        state.grid[y]![x] = null
+      }
+    }
+    const result = ctrl.tickTimer(0.5)
+    expect(result.status).toBe('playing')
+    expect(result.floor).toBe(2)
+  })
+  it('일반 웨이브 타이머 만료 시 몬스터 수만큼 HP 감소 후 다음 층', () => {
+    const ctrl = createGameController(42)
+    const state = ctrl.getState()
+    state.isBossWave = false
+    state.waveTimer = 0.1
+    state.hero.hp = 10
+    state.hero.pos = { x: 3, y: 3 }
+    // Place 2 monsters
+    state.grid[0]![0] = { kind: 'monster', name: 'Rat', hp: 1, atk: 1 }
+    state.grid[0]![1] = { kind: 'monster', name: 'Bat', hp: 2, atk: 1 }
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        if (!((y === 0 && (x === 0 || x === 1)) || (y === 3 && x === 3))) {
+          state.grid[y]![x] = null
+        }
+      }
+    }
+    const result = ctrl.tickTimer(0.5)
+    expect(result.status).toBe('playing')
+    expect(result.floor).toBe(2)
+  })
+  it('일반 웨이브 타이머 만료 시 데미지가 HP를 0으로 만들면 game_over', () => {
+    const ctrl = createGameController(42)
+    const state = ctrl.getState()
+    state.isBossWave = false
+    state.waveTimer = 0.1
+    state.hero.hp = 2
+    state.hero.pos = { x: 3, y: 3 }
+    // Place 3 monsters — will deal 3 damage to hero with 2 HP
+    state.grid[0]![0] = { kind: 'monster', name: 'Rat', hp: 1, atk: 1 }
+    state.grid[0]![1] = { kind: 'monster', name: 'Bat', hp: 2, atk: 1 }
+    state.grid[0]![2] = { kind: 'monster', name: 'Goblin', hp: 3, atk: 2 }
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        if (!((y === 0 && x <= 2) || (y === 3 && x === 3))) {
+          state.grid[y]![x] = null
+        }
+      }
+    }
+    const result = ctrl.tickTimer(0.5)
+    expect(result.status).toBe('game_over')
+    expect(result.gameOverCause).toBe('normal')
+  })
+  it('isBossFloor — 10의 배수만 보스 층', () => {
+    expect(isBossFloor(1)).toBe(false)
+    expect(isBossFloor(5)).toBe(false)
+    expect(isBossFloor(10)).toBe(true)
+    expect(isBossFloor(20)).toBe(true)
+    expect(isBossFloor(15)).toBe(false)
   })
 })
 

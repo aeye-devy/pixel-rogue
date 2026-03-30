@@ -25,6 +25,7 @@ export interface Monster {
   hp: number
   atk: number
   name: string
+  isBoss?: boolean
 }
 
 export interface Potion {
@@ -77,11 +78,13 @@ export type GameEvent =
   | { type: 'collect_weapon'; pos: Position; atk: number }
   | { type: 'collect_shield'; pos: Position; def: number }
   | { type: 'floor_clear'; floor: number }
-  | { type: 'game_over'; floor: number; score: number }
+  | { type: 'boss_wave_start'; floor: number }
+  | { type: 'game_over'; floor: number; score: number; cause: 'normal' | 'boss_survived' }
 
 // -- Game State --
 
 export type GameStatus = 'title' | 'playing' | 'floor_clear' | 'game_over'
+export type GameOverCause = 'normal' | 'boss_survived'
 
 export interface GameState {
   grid: Cell[][]
@@ -90,6 +93,9 @@ export interface GameState {
   score: number
   status: GameStatus
   events: GameEvent[]
+  waveTimer: number
+  isBossWave: boolean
+  gameOverCause: GameOverCause
 }
 
 // -- RNG interface --

@@ -79,6 +79,10 @@ function processEvents(events: GameEvent[]): void {
         anims.addFloatText(ev.pos, `DEF+${ev.def}`, PALETTE.shieldInner)
         sound.play('shieldEquip')
         break
+      case 'boss_wave_start':
+        anims.addScreenFlash(PALETTE.hpBar)
+        sound.play('floorClear')
+        break
       case 'floor_clear':
         anims.addScreenFlash(PALETTE.exit)
         sound.play('floorClear')
@@ -86,6 +90,9 @@ function processEvents(events: GameEvent[]): void {
         break
       case 'game_over':
         highScoreData = saveHighScore(ev.score, ev.floor)
+        if (ev.cause === 'boss_survived') {
+          anims.addScreenFlash(PALETTE.hpBar)
+        }
         sound.play('gameOver')
         break
     }
@@ -294,6 +301,21 @@ function frame(timestamp: number): void {
     renderer.renderTitle(time)
   } else {
     anims.update(dt)
+    if (screen === 'playing' && dt > 0) {
+      const timerState = game.tickTimer(dt)
+      processEvents(timerState.events)
+      if (timerState.status === 'game_over') {
+        if (!game.hasRevived()) {
+          screen = 'ad_revive'
+          inputLocked = true
+          setTimeout(() => { inputLocked = false }, 300)
+        } else {
+          screen = 'game_over'
+          inputLocked = true
+          setTimeout(() => { inputLocked = false }, 800)
+        }
+      }
+    }
     const state = game.getState()
     renderer.render(state, anims)
     if (screen === 'playing') {

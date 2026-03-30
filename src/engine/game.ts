@@ -8,8 +8,11 @@ import type {
   RNG,
 } from './types.js'
 import { DIRECTION_DELTAS, GRID_SIZE } from './types.js'
-import { generateFloor, shouldShowExit } from './floor.js'
+import { generateFloor, isBossFloor, shouldShowExit } from './floor.js'
 import { createRNG } from './rng.js'
+
+const NORMAL_WAVE_TIMER = 30
+const BOSS_WAVE_TIMER = 50
 
 // -- Hero factory --
 
@@ -40,6 +43,9 @@ export function createGame(seed?: number): { state: GameState; rng: RNG } {
     score: 0,
     status: 'playing',
     events: [],
+    waveTimer: NORMAL_WAVE_TIMER,
+    isBossWave: false,
+    gameOverCause: 'normal',
   }
   return { state, rng }
 }
@@ -147,11 +153,13 @@ function resolveMonsterCell(state: GameState, pos: Position, monster: Monster): 
     if (state.hero.hp <= 0) {
       state.hero.hp = 0
       state.status = 'game_over'
+      state.gameOverCause = 'normal'
       state.score = calculateScore(state)
       state.events.push({
         type: 'game_over',
         floor: state.floor,
         score: state.score,
+        cause: 'normal',
       })
     }
   }
@@ -229,6 +237,12 @@ function advanceFloor(ctx: MoveContext): MoveContext {
   const FLOOR_HEAL = 2
   const healAmount = Math.min(FLOOR_HEAL, state.hero.maxHp - state.hero.hp)
   state.hero.hp += healAmount
+  const nextIsBoss = isBossFloor(state.floor)
+  state.isBossWave = nextIsBoss
+  state.waveTimer = nextIsBoss ? BOSS_WAVE_TIMER : NORMAL_WAVE_TIMER
+  if (nextIsBoss) {
+    state.events.push({ type: 'boss_wave_start', floor: state.floor })
+  }
   return { state, rng, floorEntityCount: entityCount, clearedCount: 0 }
 }
 
@@ -245,6 +259,8 @@ export type PowerUpKind = 'atk_boost' | 'full_heal'
 export interface GameController {
   getState(): GameState
   move(direction: Direction): GameState
+  /** Advance the wave timer by dt seconds. Returns updated state; may trigger game over or floor advance. */
+  tickTimer(dt: number): GameState
   /** Revive hero at 50% HP. Returns false if already used this run. */
   revive(): boolean
   /** Apply a power-up reward. */
@@ -285,10 +301,64 @@ export function createGameController(seed?: number): GameController {
       ctx.state.hero.hp = ctx.state.hero.maxHp
     }
   }
+  function tickTimer(dt: number): GameState {
+    if (ctx.state.status !== 'playing') return ctx.state
+    const prev = ctx.state.waveTimer
+    ctx.state.waveTimer = Math.max(0, prev - dt)
+    if (prev > 0 && ctx.state.waveTimer === 0) {
+      ctx.state.events = []
+      if (ctx.state.isBossWave && hasBossAlive(ctx.state)) {
+        ctx.state.status = 'game_over'
+        ctx.state.gameOverCause = 'boss_survived'
+        ctx.state.score = calculateScore(ctx.state)
+        ctx.state.events.push({
+          type: 'game_over',
+          floor: ctx.state.floor,
+          score: ctx.state.score,
+          cause: 'boss_survived',
+        })
+      } else {
+        applyTimerDamage(ctx.state)
+        if (ctx.state.status !== 'game_over') {
+          ctx = advanceFloor(ctx)
+        }
+      }
+    }
+    return ctx.state
+  }
   function hasRevived(): boolean {
     return revived
   }
-  return { getState, move, revive, applyPowerUp, hasRevived }
+  return { getState, move, tickTimer, revive, applyPowerUp, hasRevived }
+}
+
+function hasBossAlive(state: GameState): boolean {
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      const cell = state.grid[y]?.[x]
+      if (cell?.kind === 'monster' && cell.isBoss) return true
+    }
+  }
+  return false
+}
+
+function applyTimerDamage(state: GameState): void {
+  let monsterCount = 0
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      if (state.grid[y]?.[x]?.kind === 'monster') monsterCount++
+    }
+  }
+  if (monsterCount === 0) return
+  state.hero.hp = Math.max(0, state.hero.hp - monsterCount)
+  state.events.push({ type: 'hero_hurt', pos: { ...state.hero.pos }, damage: monsterCount })
+  if (state.hero.hp <= 0) {
+    state.hero.hp = 0
+    state.status = 'game_over'
+    state.gameOverCause = 'normal'
+    state.score = calculateScore(state)
+    state.events.push({ type: 'game_over', floor: state.floor, score: state.score, cause: 'normal' })
+  }
 }
 
 function countFloorEntities(state: GameState): { entityCount: number } {
